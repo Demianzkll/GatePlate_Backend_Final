@@ -1,0 +1,30 @@
+# Git
+.git
+.github
+.gitignore
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+
+# SQLite (production uses MySQL)
+db.sqlite3
+
+# YOLO runs / detection output
+runs/
+videos/detections/
+
+# Docs
+README.md

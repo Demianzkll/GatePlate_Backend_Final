@@ -1,0 +1,43 @@
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "core.settings"
+python_files = ["test_*.py"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.nox
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | __pypackages__
+  | migrations
+  | frontend
+  | media
+  | node_modules
+)/
+'''
+
+[tool.isort]
+# Це критично важливо для сумісності з Black
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+# Ваші специфічні налаштування
+skip = ["migrations", ".venv", "venv", "build", "frontend", "media", "node_modules"]
+known_django = ["django"]
+known_third_party = ["storages", "boto3", "PIL", "dotenv"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]

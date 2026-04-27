@@ -1,0 +1,85 @@
+name: Django CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  
+  tests: 
+   name: Tests 
+   runs-on: ubuntu-latest 
+   needs: quality 
+
+   steps: 
+     - name: Checkout code 
+       uses: actions/checkout@v4 
+
+     - name: Set up Python 
+       uses: actions/setup-python@v5 
+       with: 
+         python-version: '3.12' 
+         cache: 'pip' 
+
+     - name: Install system dependencies
+       run: sudo apt-get install -y default-libmysqlclient-dev build-essential pkg-config
+
+     - name: Install dependencies
+       run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-django
+
+     - name: Run tests with coverage
+       # --cov-fail-under=60: pipeline падає якщо coverage < 60%
+       # DB_ENGINE=sqlite3: use SQLite in CI (no MySQL service needed)
+       env:
+         DB_ENGINE: django.db.backends.sqlite3
+         DB_NAME: ":memory:"
+       run: pytest --cov=. --cov-report=html --cov-fail-under=60
+
+     - name: Upload coverage report 
+       uses: actions/upload-artifact@v4 
+       if: always() 
+       with: 
+         name: coverage-report 
+         path: htmlcov
+         retention-days: 7
+
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          # cache: pip прискорює повторні runs ~1 хвилина
+          # не завантажує пакети якщо requirements.txt не змінився
+          cache: 'pip'
+
+      - name: Install quality tools
+        run: pip install flake8 black isort bandit
+
+        #non-blocking: якщо якийсь інструмент не встановився, не зупиняємо весь workflow
+        
+      - name: Flake8 — PEP8 стиль і синтаксис
+        run: flake8 --config .flake8 .
+
+      - name: Black — перевірка форматування
+        # --check: тільки перевіряє, не змінює файли
+        run:  black --check .
+
+      - name: isort — порядок імпортів
+        run: isort --check-only .
+
+      - name: Bandit — security scan
+        # -ll: тільки HIGH і MEDIUM severity (не LOW)
+        # Знаходить: hardcoded passwords, SQL injection, shell injection
+        run: bandit -r . -x .venv,migrations -ll

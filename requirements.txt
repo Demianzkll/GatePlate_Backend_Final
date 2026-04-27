@@ -1,0 +1,25 @@
+﻿# Основне
+Django==6.0.1
+django-cors-headers==4.9.0
+djangorestframework==3.16.1
+python-dotenv==1.2.2
+whitenoise==6.12.0
+
+# База даних
+mysqlclient==2.2.7
+
+# AI та Комп'ютерний зір
+ultralytics==8.4.11
+pytesseract==0.3.13
+opencv-python==4.13.0.92
+# torchvision та torch НЕ додаємо сюди, вони в Dockerfile
+
+# Сервер
+gunicorn==23.0.0
+uvicorn[standard]==0.34.0
+
+# Інші необхідні залежності (залиш як є, або просто ті, що зверху)
+asgiref
+pillow
+numpy
+requests

@@ -1,0 +1,21 @@
+# --- Python / Django (Твої налаштування) ---
+.venv/
+*.py[cod]
+db.sqlite3
+.env
+**/__pycache__/
+*.pyc
+
+# --- Специфічне для GatePlate ---
+videos/detections/
+runs/
+*.pt
+
+# --- Тестування та IDE ---
+.coverage
+htmlcov/
+.vscode/
+.DS_Store
+backup.sql
+
+videos/
