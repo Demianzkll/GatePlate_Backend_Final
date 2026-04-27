@@ -198,3 +198,13 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
+
+# Дозволяє відображати сайт в іфреймах (потрібно для вкладки App на HF)
+X_FRAME_OPTIONS = 'ALLOWALL' 
+
+# Якщо використовуєш сесії/адмінку у фреймі
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
