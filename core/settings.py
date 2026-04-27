@@ -161,10 +161,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "videos")
 
-pytesseract.pytesseract.tesseract_cmd = os.environ.get(
-    "TESSERACT_CMD",
-    r"C:\Users\Demian\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
-)
+import os
+import platform
+import pytesseract
+
+if platform.system() == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = os.environ.get(
+        "TESSERACT_CMD",
+        r"C:\Users\Demian\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
+    )
+else:
+    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 
 # Database
