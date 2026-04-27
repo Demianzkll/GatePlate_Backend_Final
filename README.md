@@ -1,3 +1,13 @@
+---
+title: GatePlate
+emoji: 🚗
+colorFrom: indigo
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # GatePlate Backend
 
 GatePlate is an Automatic License Plate Recognition (ALPR) system and access control management application. This repository contains the backend built with Django, Django Channels, and PyTorch (YOLO).
