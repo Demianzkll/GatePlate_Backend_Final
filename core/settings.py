@@ -215,3 +215,14 @@ SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
+
+
+# Дозволяємо Django приймати запити з домену Hugging Face
+CSRF_TRUSTED_ORIGINS = [
+    "https://demian2008-gateplate.hf.space",
+]
+
+# Також корисно додати ці налаштування для коректної роботи сесій через проксі
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
