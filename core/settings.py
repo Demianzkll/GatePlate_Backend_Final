@@ -189,12 +189,13 @@ DATABASES = {
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", "3306"),
         "OPTIONS": {
-            'init_command': "SET names utf8mb4 COLLATE utf8mb4_unicode_ci",
-            "charset": "utf8mb4",
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES', names='utf8mb4'",
+            'charset': 'utf8mb4',
             'ssl': {
                 'ca': os.path.join(BASE_DIR, 'ca.pem'),
             },
         },
+        'CONN_MAX_AGE': 600,
     }
 }
 
