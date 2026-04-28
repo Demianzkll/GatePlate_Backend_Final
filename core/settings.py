@@ -75,11 +75,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000",
-).split(",")
-
 CORS_ALLOW_HEADERS = [
     "accept",
     "authorization",  # Цей рядок обов'язковий!
@@ -220,11 +215,27 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
 
+# Спочатку беремо те, що в системі (наприклад, з налаштувань Hugging Face)
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "CORS_ALLOWED_ORIGINS", 
+    ""
+).split(",")
 
-# Дозволяємо Django приймати запити з домену Hugging Face
+# Очищуємо від порожніх рядків (якщо змінна порожня)
+CORS_ALLOWED_ORIGINS = [origin for origin in CORS_ALLOWED_ORIGINS if origin]
+
+# Додаємо твої обов'язкові домени, щоб вони були там ЗАВЖДИ
+CORS_ALLOWED_ORIGINS += [
+    "https://gateplate.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 CSRF_TRUSTED_ORIGINS = [
+    "https://gateplate.vercel.app",
     "https://demian2008-gateplate.hf.space",
 ]
+
 
 # Також корисно додати ці налаштування для коректної роботи сесій через проксі
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
