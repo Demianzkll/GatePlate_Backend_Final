@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env file
-load_dotenv(BASE_DIR / ".env")
+load_dotenv()
+
 WAYFORPAY_ACCOUNT = os.getenv('WFP_MERCHANT_ACCOUNT')
 WAYFORPAY_SECRET_KEY = os.getenv('WFP_MERCHANT_SECRET_KEY')
 WAYFORPAY_DOMAIN = os.getenv('WFP_DOMAIN')
@@ -179,7 +180,6 @@ else:
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
 DATABASES = {
     "default": {
         "ENGINE": os.environ.get("DB_ENGINE", "django.db.backends.mysql"),
