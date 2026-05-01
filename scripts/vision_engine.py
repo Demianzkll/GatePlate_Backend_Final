@@ -9,8 +9,39 @@ import cv2
 import numpy as np
 import pytesseract
 from ultralytics import YOLO
+import threading
 
 from recognition.models import AccessPermit, BlackList, Camera, DetectedPlate, Vehicle
+
+class VideoCaptureThread:
+    """Thread for reading the latest frame from a video stream to prevent lag."""
+    def __init__(self, src):
+        self.stream = cv2.VideoCapture(src)
+        self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+        (self.grabbed, self.frame) = self.stream.read()
+        self.stopped = False
+
+    def start(self):
+        threading.Thread(target=self.update, daemon=True).start()
+        return self
+
+    def update(self):
+        while True:
+            if self.stopped:
+                self.stream.release()
+                return
+            grabbed, frame = self.stream.read()
+            if grabbed:
+                self.frame = frame
+            else:
+                self.grabbed = False
+
+    def read(self):
+        return self.grabbed, self.frame
+
+    def stop(self):
+        self.stopped = True
+
 
 
 class PlateRecognizer:
@@ -284,22 +315,34 @@ class VisionEngine:
             return "guest", "Помилка бази даних"
 
     def run(self):
-        video_path = os.path.join(settings.BASE_DIR, "videos", self.video_name)
-        cap = cv2.VideoCapture(video_path)
+        base_url = os.environ.get("RTSP_BASE_URL", "rtsp://localhost:8554")
+        # If video_name is a direct rtsp:// link use it, otherwise append to base URL
+        if self.video_name.startswith("rtsp://"):
+            stream_url = self.video_name
+        else:
+            stream_url = f"{base_url}/{self.video_name}"
+            
+        print(f"[START] Підключення до RTSP потоку: {stream_url}")
+        
+        cap_thread = VideoCaptureThread(stream_url).start()
         frame_id = 0
         was_auto_saved = False
 
-        while cap.isOpened() and not was_auto_saved:
-            ret, frame = cap.read()
-            if not ret or frame_id > 800:
+        while not was_auto_saved:
+            ret, frame = cap_thread.read()
+            if not ret:
+                # Потік може завершитись або перерватись
                 break
 
             if frame_id % self.frame_step == 0:
-                plate_text, conf = self.recognizer.recognize_plate(frame)
+                # Копіюємо кадр, щоб потік продовжував оновлюватись
+                process_frame = frame.copy()
+                plate_text, conf = self.recognizer.recognize_plate(process_frame)
+                
                 if plate_text != "Невпізнано":
 
                     if conf >= 0.8:
-                        self._auto_save_record(frame, plate_text, conf)
+                        self._auto_save_record(process_frame, plate_text, conf)
                         was_auto_saved = True
                         break
 
@@ -316,7 +359,7 @@ class VisionEngine:
                         plate_text not in self.best_results
                         or conf > self.best_results[plate_text]["conf"]
                     ):
-                        _, buffer = cv2.imencode(".jpg", frame)
+                        _, buffer = cv2.imencode(".jpg", process_frame)
                         self.best_results[plate_text] = {
                             "conf": conf,
                             "image_content": ContentFile(buffer.tobytes()),
@@ -324,8 +367,10 @@ class VisionEngine:
                         }
 
             frame_id += 1
+            # Невелика пауза, щоб розвантажити CPU у нескінченному циклі
+            cv2.waitKey(1)
 
-        cap.release()
+        cap_thread.stop()
         if not was_auto_saved:
             self.finalize()
 
