@@ -330,8 +330,9 @@ class VisionEngine:
 
         while not was_auto_saved:
             ret, frame = cap_thread.read()
-            if not ret:
-                # Потік може завершитись або перерватись
+            if not ret or frame_id > 300: # Ліміт 300 кадрів для однієї сесії аналізу
+                if frame_id > 300:
+                    print(f"[DEBUG] Досягнуто ліміт кадрів ({frame_id}). Фіналізація...")
                 break
 
             if frame_id % self.frame_step == 0:

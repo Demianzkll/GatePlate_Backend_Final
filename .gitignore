@@ -1,4 +1,4 @@
-# --- Python / Django (Твої налаштування) ---
+# --- Python / Django ---
 .venv/
 *.py[cod]
 db.sqlite3
@@ -7,9 +7,20 @@ db.sqlite3
 *.pyc
 
 # --- Специфічне для GatePlate ---
-videos/detections/
+videos/
 runs/
 *.pt
+
+# --- MediaMTX & FFmpeg ---
+mediamtx/mediamtx.exe
+mediamtx/ffmpeg.exe
+mediamtx/mediamtx.log
+*.log
+
+# --- Сертифікати та Секрети ---
+*.pem
+*.crt
+*.key
 
 # --- Тестування та IDE ---
 .coverage
@@ -17,7 +28,3 @@ htmlcov/
 .vscode/
 .DS_Store
 backup.sql
-
-mediamtx.exe
-ffmpeg.exe
-*.log
