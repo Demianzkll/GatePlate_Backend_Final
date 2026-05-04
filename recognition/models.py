@@ -231,3 +231,37 @@ class PaymentTransaction(models.Model):
 
     def __str__(self):
         return f"Transaction {self.order_reference} - {self.get_status_display()}"
+
+
+class SystemConfig(models.Model):
+    """Глобальні налаштування системи (Singleton)"""
+    total_parking_spots = models.IntegerField(default=50, verbose_name="Кількість паркомісць")
+
+    class Meta:
+        verbose_name = "Налаштування системи"
+        verbose_name_plural = "Налаштування системи"
+
+    def __str__(self):
+        return f"Налаштування (Місць: {self.total_parking_spots})"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # Завжди один запис
+        super(SystemConfig, self).save(*args, **kwargs)
+
+    @classmethod
+    def get_config(cls):
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class ParkingSession(models.Model):
+    """Відстеження авто, які зараз на території"""
+    plate_text = models.CharField(max_length=20, unique=True, verbose_name="Номер авто")
+    entered_at = models.DateTimeField(auto_now_add=True, verbose_name="Час в'їзду")
+
+    class Meta:
+        verbose_name = "Авто на території"
+        verbose_name_plural = "Авто на території"
+
+    def __str__(self):
+        return f"{self.plate_text} (з {self.entered_at.strftime('%H:%M')})"

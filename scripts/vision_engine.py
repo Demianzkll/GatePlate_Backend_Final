@@ -1,5 +1,6 @@
 import os
 import re
+import time
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -11,7 +12,8 @@ import pytesseract
 from ultralytics import YOLO
 import threading
 
-from recognition.models import AccessPermit, BlackList, Camera, DetectedPlate, Vehicle
+from recognition.models import AccessPermit, BlackList, Camera, DetectedPlate, Vehicle, ParkingSession
+
 
 class VideoCaptureThread:
     """Thread for reading the latest frame from a video stream to prevent lag."""
@@ -33,6 +35,7 @@ class VideoCaptureThread:
             grabbed, frame = self.stream.read()
             if grabbed:
                 self.frame = frame
+                self.grabbed = True
             else:
                 self.grabbed = False
 
@@ -212,6 +215,10 @@ class VisionEngine:
 
         self.frame_step = frame_step
         self.best_results = {}
+        self._stop_requested = False
+
+    def stop(self):
+        self._stop_requested = True
 
     def analyze_single_photo(self, image_file, save_to_archive=True):
         """Аналізує фото. Зберігає в Архів тільки якщо save_to_archive=True"""
@@ -325,55 +332,78 @@ class VisionEngine:
         print(f"[START] Підключення до RTSP потоку: {stream_url}")
         
         cap_thread = VideoCaptureThread(stream_url).start()
-        frame_id = 0
-        was_auto_saved = False
+        
+        while not self._stop_requested:
+            # Чекаємо, поки оператор не підтвердить/відхилить попередній кадр
+            if self.cache_dict is not None and self.video_name in self.cache_dict:
+                time.sleep(1)
+                continue
 
-        while not was_auto_saved:
-            ret, frame = cap_thread.read()
-            if not ret or frame_id > 300: # Ліміт 300 кадрів для однієї сесії аналізу
-                if frame_id > 300:
+            frame_id = 0
+            was_auto_saved = False
+            self.best_results = {}
+
+            while not was_auto_saved and not self._stop_requested:
+                ret, frame = cap_thread.read()
+                if not ret:
+                    print(f"[DEBUG] Потік {self.video_name} втрачено або кадрів немає. Перепідключення...")
+                    cap_thread.stop()
+                    time.sleep(2)
+                    cap_thread = VideoCaptureThread(stream_url).start()
+                    break
+
+                if frame_id > 300: # Ліміт 300 кадрів для однієї сесії аналізу
                     print(f"[DEBUG] Досягнуто ліміт кадрів ({frame_id}). Фіналізація...")
-                break
+                    break
 
-            if frame_id % self.frame_step == 0:
-                # Копіюємо кадр, щоб потік продовжував оновлюватись
-                process_frame = frame.copy()
-                plate_text, conf = self.recognizer.recognize_plate(process_frame)
+                if frame_id % self.frame_step == 0:
+                    # Копіюємо кадр, щоб потік продовжував оновлюватись
+                    process_frame = frame.copy()
+                    plate_text, conf = self.recognizer.recognize_plate(process_frame)
+                    
+                    if plate_text != "Невпізнано":
+
+                        if conf >= 0.8:
+                            self._auto_save_record(process_frame, plate_text, conf)
+                            was_auto_saved = True
+                            break
+
+                        if self.live_dict is not None:
+                            self.live_dict[self.video_name] = {
+                                "plate": plate_text,
+                                "conf": conf,
+                                "needs_confirmation": False,
+                                "is_finished": False,
+                                "message": "Аналізую... шукаю чіткий кадр",
+                            }
+
+                        if (
+                            plate_text not in self.best_results
+                            or conf > self.best_results[plate_text]["conf"]
+                        ):
+                            _, buffer = cv2.imencode(".jpg", process_frame)
+                            self.best_results[plate_text] = {
+                                "conf": conf,
+                                "image_content": ContentFile(buffer.tobytes()),
+                                "timestamp": timezone.now(),
+                            }
+
+                frame_id += 1
+                # Невелика пауза, щоб розвантажити CPU у нескінченному циклі
+                cv2.waitKey(1)
+
+            if not was_auto_saved and not self._stop_requested:
+                self.finalize()
                 
-                if plate_text != "Невпізнано":
-
-                    if conf >= 0.8:
-                        self._auto_save_record(process_frame, plate_text, conf)
-                        was_auto_saved = True
+            # Пауза 5 секунд перед наступним аналізом ТІЛЬКИ якщо авто успішно пропущено
+            if was_auto_saved:
+                for _ in range(50):
+                    if self._stop_requested:
                         break
-
-                    if self.live_dict is not None:
-                        self.live_dict[self.video_name] = {
-                            "plate": plate_text,
-                            "conf": conf,
-                            "needs_confirmation": False,
-                            "is_finished": False,
-                            "message": "Аналізую... шукаю чіткий кадр",
-                        }
-
-                    if (
-                        plate_text not in self.best_results
-                        or conf > self.best_results[plate_text]["conf"]
-                    ):
-                        _, buffer = cv2.imencode(".jpg", process_frame)
-                        self.best_results[plate_text] = {
-                            "conf": conf,
-                            "image_content": ContentFile(buffer.tobytes()),
-                            "timestamp": timezone.now(),
-                        }
-
-            frame_id += 1
-            # Невелика пауза, щоб розвантажити CPU у нескінченному циклі
-            cv2.waitKey(1)
+                    time.sleep(0.1)
 
         cap_thread.stop()
-        if not was_auto_saved:
-            self.finalize()
+        print(f"[STOP] Аналіз потоку завершено: {self.video_name}")
 
     def _auto_save_record(self, frame, plate_text, conf):
         """Внутрішній метод для миттєвого збереження в БД"""
@@ -390,6 +420,16 @@ class VisionEngine:
         content = ContentFile(buffer.tobytes())
         filename = f"{plate_text}_{timezone.now().strftime('%H%M%S')}.jpg"
         new_rec.image.save(filename, content, save=True)
+
+        # Перемикання лічильника парковки
+        try:
+            session = ParkingSession.objects.filter(plate_text=plate_text).first()
+            if session:
+                session.delete() # Виїзд
+            else:
+                ParkingSession.objects.create(plate_text=plate_text) # В'їзд
+        except Exception as e:
+            print(f"[ERROR] Помилка лічильника парковки: {e}")
 
         if self.live_dict is not None:
             self.live_dict[self.video_name] = {
@@ -430,6 +470,16 @@ class VisionEngine:
                 new_rec.image.save(
                     f"{top_plate}_auto.jpg", top_data["image_content"], save=True
                 )
+
+                # Перемикання лічильника парковки
+                try:
+                    session = ParkingSession.objects.filter(plate_text=top_plate).first()
+                    if session:
+                        session.delete()
+                    else:
+                        ParkingSession.objects.create(plate_text=top_plate)
+                except Exception as e:
+                    print(f"[ERROR] Помилка лічильника парковки: {e}")
 
                 if self.live_dict is not None:
                     self.live_dict[self.video_name] = {

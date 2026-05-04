@@ -18,6 +18,7 @@ from .views import (
     VehicleViewSet,
     WayForPayWebhookAPIView,
     WayForPayCreatePaymentAPIView,
+    ParkingStatusView,
 )
 
 router = DefaultRouter()
@@ -42,5 +43,6 @@ urlpatterns = [
     path("payment/create/", WayForPayCreatePaymentAPIView.as_view(), name="wayforpay-create"),
     path("payment/webhook/", WayForPayWebhookAPIView.as_view(), name="wayforpay-webhook"),
     path("payment/status/", PaymentStatusAPIView.as_view(), name="payment-status"),
+    path("parking-status/", ParkingStatusView.as_view(), name="parking-status"),
     path("", include(router.urls)),
 ]

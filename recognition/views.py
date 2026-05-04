@@ -31,6 +31,8 @@ from .models import (
     Employee,
     UserProfile,
     Vehicle,
+    SystemConfig,
+    ParkingSession,
 )
 from .serializers import (
     CameraSerializer,
@@ -344,6 +346,23 @@ class LiveUpdateView(APIView):
     def get(self, request):
         video_name = request.query_params.get("video", "")
         data = live_previews.get(video_name)
+        
+        # Отримуємо дані про парковку
+        try:
+            config = SystemConfig.get_config()
+            total_spots = config.total_parking_spots
+            occupied_spots = ParkingSession.objects.count()
+        except Exception:
+            total_spots = 50
+            occupied_spots = 0
+
+        response_data = data.copy() if data else {}
+        response_data["parking"] = {
+            "total": total_spots,
+            "occupied": occupied_spots,
+            "available": max(0, total_spots - occupied_spots)
+        }
+
         if data and data.get("is_finished"):
 
             def delayed_clear():
@@ -351,7 +370,7 @@ class LiveUpdateView(APIView):
                 live_previews.pop(video_name, None)
 
             threading.Thread(target=delayed_clear).start()
-        return Response(data)
+        return Response(response_data)
 
 
 class PlateConfirmView(APIView):
@@ -383,6 +402,16 @@ class PlateConfirmView(APIView):
             new_record.image.save(
                 f"{plate_text}_manual.jpg", temp_data["image_content"], save=True
             )
+
+        # Перемикання лічильника парковки (для ручного пропуску)
+        try:
+            session = ParkingSession.objects.filter(plate_text=plate_text).first()
+            if session:
+                session.delete()
+            else:
+                ParkingSession.objects.create(plate_text=plate_text)
+        except Exception as e:
+            print(f"[ERROR] Помилка лічильника парковки: {e}")
 
         live_previews.pop(video_name, None)
         temp_best_frames.pop(video_name, None)
@@ -599,6 +628,25 @@ class PhotoRecognitionAPIView(APIView):
 
         return Response(analysis)
 
+
+class ParkingStatusView(APIView):
+    """Окрема ручка для глобального лічильника парковки"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            config = SystemConfig.get_config()
+            total_spots = config.total_parking_spots
+            occupied_spots = ParkingSession.objects.count()
+        except Exception:
+            total_spots = 50
+            occupied_spots = 0
+
+        return Response({
+            "total": total_spots,
+            "occupied": occupied_spots,
+            "available": max(0, total_spots - occupied_spots)
+        })
 
 class CameraViewSet(viewsets.ModelViewSet):
     """CRUD для камер / відеопотоків"""

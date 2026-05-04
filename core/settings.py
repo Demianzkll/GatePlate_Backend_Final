@@ -245,6 +245,6 @@ CSRF_COOKIE_SECURE = True
 
 db_host = os.environ.get("DB_HOST")
 if db_host:
-    print(f"✅ DB_HOST found: {db_host[:5]}...")
+    print(f"[OK] DB_HOST found: {db_host[:5]}...")
 else:
-    print("❌ DB_HOST IS EMPTY IN ENV VARIABLES")
+    print("[ERROR] DB_HOST IS EMPTY IN ENV VARIABLES")
