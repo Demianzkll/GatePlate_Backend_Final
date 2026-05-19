@@ -8,6 +8,7 @@ from .views import (
     DetectedPlateListView,
     EmployeeDetailView,
     EmployeeListCreateView,
+    FrameStepConfigView,
     GuestVehicleCreateView,
     GuestVehicleListView,
     IssueAPIKeyView,
@@ -44,5 +45,6 @@ urlpatterns = [
     path("payment/webhook/", WayForPayWebhookAPIView.as_view(), name="wayforpay-webhook"),
     path("payment/status/", PaymentStatusAPIView.as_view(), name="payment-status"),
     path("parking-status/", ParkingStatusView.as_view(), name="parking-status"),
+    path("frame-step/", FrameStepConfigView.as_view(), name="frame-step-config"),
     path("", include(router.urls)),
 ]

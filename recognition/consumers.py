@@ -14,16 +14,17 @@ and receive JSON frames every second:
     }
 
 The consumer spawns an internal asyncio loop that reads
-system metrics via psutil and pushes them directly to the
-WebSocket — no external process or Redis required.
+system metrics via psutil and real AI pipeline data,
+then pushes them directly to the WebSocket.
 """
 
 import asyncio
 import json
-import random
 
 import psutil
 from channels.generic.websocket import AsyncWebsocketConsumer
+
+from recognition.ai_metrics import ai_metrics
 
 
 class SystemStatsConsumer(AsyncWebsocketConsumer):
@@ -56,14 +57,14 @@ class SystemStatsConsumer(AsyncWebsocketConsumer):
         """
         Gather system metrics.
 
-        CPU and RAM are real (psutil).
-        AI-related fields are simulated — swap them for your
-        actual YOLOv8 pipeline stats when available.
+        CPU and RAM come from psutil (real).
+        AI metrics come from the shared ai_metrics singleton,
+        which is updated in real-time by the VisionEngine.
         """
         cpu = psutil.cpu_percent(interval=None)
         ram = psutil.virtual_memory().percent
 
-        ai = SystemStatsConsumer._get_ai_metrics()
+        ai = ai_metrics.snapshot()
 
         return {
             "fps": ai["fps"],
@@ -72,31 +73,4 @@ class SystemStatsConsumer(AsyncWebsocketConsumer):
             "ram": ram,
             "is_active": ai["is_active"],
             "confidence": ai["confidence"],
-        }
-
-    @staticmethod
-    def _get_ai_metrics() -> dict:
-        """
-        Return AI-pipeline metrics.
-
-        TODO: Replace the random values below with real stats from
-        your YOLOv8 inference loop once it exposes them (e.g. via
-        a shared dict, Redis, or an in-process queue).
-        """
-        is_active = random.random() > 0.15  # ~85 % chance the model is busy
-
-        if is_active:
-            fps = round(random.uniform(22, 32), 1)
-            latency = round(random.uniform(25, 55), 1)
-            confidence = round(random.uniform(0.82, 0.98), 2)
-        else:
-            fps = 0.0
-            latency = 0.0
-            confidence = 0.0
-
-        return {
-            "fps": fps,
-            "latency": latency,
-            "is_active": is_active,
-            "confidence": confidence,
         }

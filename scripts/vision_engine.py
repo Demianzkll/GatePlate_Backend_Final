@@ -13,6 +13,7 @@ from ultralytics import YOLO
 import threading
 
 from recognition.models import AccessPermit, BlackList, Camera, DetectedPlate, Vehicle, ParkingSession
+from recognition.ai_metrics import ai_metrics
 
 
 class VideoCaptureThread:
@@ -217,8 +218,14 @@ class VisionEngine:
         self.best_results = {}
         self._stop_requested = False
 
+        # Real-time metrics tracking
+        self._frames_processed = 0
+        self._fps_timer = time.time()
+        self._current_fps = 0.0
+
     def stop(self):
         self._stop_requested = True
+        ai_metrics.reset()
 
     def analyze_single_photo(self, image_file, save_to_archive=True):
         """Аналізує фото. Зберігає в Архів тільки якщо save_to_archive=True"""
@@ -332,6 +339,7 @@ class VisionEngine:
         print(f"[START] Підключення до RTSP потоку: {stream_url}")
         
         cap_thread = VideoCaptureThread(stream_url).start()
+        ai_metrics.update(is_active=True)
         
         while not self._stop_requested:
             # Чекаємо, поки оператор не підтвердить/відхилить попередній кадр
@@ -359,7 +367,27 @@ class VisionEngine:
                 if frame_id % self.frame_step == 0:
                     # Копіюємо кадр, щоб потік продовжував оновлюватись
                     process_frame = frame.copy()
+
+                    # --- Замір реальних метрик ---
+                    t_start = time.time()
                     plate_text, conf = self.recognizer.recognize_plate(process_frame)
+                    latency_ms = (time.time() - t_start) * 1000
+
+                    # Підрахунок реального FPS
+                    self._frames_processed += 1
+                    elapsed = time.time() - self._fps_timer
+                    if elapsed >= 1.0:
+                        self._current_fps = self._frames_processed / elapsed
+                        self._frames_processed = 0
+                        self._fps_timer = time.time()
+
+                    # Оновлюємо спільні метрики
+                    ai_metrics.update(
+                        is_active=True,
+                        fps=round(self._current_fps, 1),
+                        latency=round(latency_ms, 1),
+                        confidence=round(conf, 2),
+                    )
                     
                     if plate_text != "Невпізнано":
 
@@ -403,6 +431,7 @@ class VisionEngine:
                     time.sleep(0.1)
 
         cap_thread.stop()
+        ai_metrics.reset()
         print(f"[STOP] Аналіз потоку завершено: {self.video_name}")
 
     def _auto_save_record(self, frame, plate_text, conf):
