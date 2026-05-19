@@ -465,6 +465,12 @@ class VehicleViewSet(viewsets.ModelViewSet):
     queryset = Vehicle.objects.all()
     serializer_class = VehicleSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action == 'list':
+            return queryset.filter(employee__isnull=False)
+        return queryset
+
     def get_permissions(self):
         if self.action == "check_plate":
             return [permissions.IsAuthenticated()]
