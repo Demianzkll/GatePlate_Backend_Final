@@ -49,9 +49,8 @@ live_previews = {}
 temp_best_frames = {}
 
 # Глобальна конфігурація
-engine_config = {
-    "frame_step": 10,
-}
+from .ai_metrics import engine_config
+
 
 class WayForPayService:
     """Сервіс для роботи з WayForPay API"""
@@ -405,11 +404,14 @@ class PlateConfirmView(APIView):
 
         # Перемикання лічильника парковки (для ручного пропуску)
         try:
-            session = ParkingSession.objects.filter(plate_text=plate_text).first()
+            clean_plate = plate_text.strip().upper()
+            session = ParkingSession.objects.filter(plate_text__iexact=clean_plate).first()
             if session:
                 session.delete()
+                print(f"[PARKING] Виїзд (ручний): {clean_plate}")
             else:
-                ParkingSession.objects.create(plate_text=plate_text)
+                ParkingSession.objects.create(plate_text=clean_plate)
+                print(f"[PARKING] В'їзд (ручний): {clean_plate}")
         except Exception as e:
             print(f"[ERROR] Помилка лічильника парковки: {e}")
 
@@ -643,16 +645,50 @@ class ParkingStatusView(APIView):
         try:
             config = SystemConfig.get_config()
             total_spots = config.total_parking_spots
-            occupied_spots = ParkingSession.objects.count()
+            sessions = ParkingSession.objects.all().order_by("-entered_at")
+            occupied_spots = sessions.count()
         except Exception:
             total_spots = 50
+            sessions = ParkingSession.objects.none()
             occupied_spots = 0
+
+        # Build vehicle list with owner info
+        vehicles_list = []
+        for session in sessions:
+            owner = "Гість"
+            role = "Гість"
+            vehicle = Vehicle.objects.filter(plate_text__iexact=session.plate_text).first()
+            if vehicle and vehicle.employee:
+                emp = vehicle.employee
+                first_initial = f"{emp.first_name[0]}." if emp.first_name else ""
+                owner = f"{first_initial} {emp.last_name}".strip() or "Працівник"
+                role = "Працівник"
+
+            vehicles_list.append({
+                "plate_text": session.plate_text,
+                "entered_at": session.entered_at.isoformat(),
+                "owner": owner,
+                "role": role,
+            })
 
         return Response({
             "total": total_spots,
             "occupied": occupied_spots,
-            "available": max(0, total_spots - occupied_spots)
+            "available": max(0, total_spots - occupied_spots),
+            "vehicles": vehicles_list,
         })
+
+    def delete(self, request):
+        plate_text = request.data.get("plate_text")
+        if not plate_text:
+            return Response({"error": "Plate text is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        clean_plate = plate_text.strip().upper()
+        session = ParkingSession.objects.filter(plate_text__iexact=clean_plate).first()
+        if session:
+            session.delete()
+            return Response({"status": "deleted", "message": f"Successfully removed {clean_plate} from parking."})
+        return Response({"error": "Vehicle not found on parking"}, status=status.HTTP_404_NOT_FOUND)
 
 class CameraViewSet(viewsets.ModelViewSet):
     """CRUD для камер / відеопотоків"""

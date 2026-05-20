@@ -1,0 +1,13 @@
+services:
+  mediamtx:
+    # Use the image tag that includes FFmpeg, built for ARM64
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: mediamtx
+    network_mode: host
+    restart: unless-stopped
+    devices:
+      # Pass the USB camera through to the container
+      - /dev/video0:/dev/video0
+    volumes:
+      # Mount your configuration file
+      - ./mediamtx.yml:/mediamtx.yml

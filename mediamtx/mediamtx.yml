@@ -797,6 +797,10 @@ pathDefaults:
 # for example "~^(test1|test2)$" will match both "test1" and "test2",
 # for example "~^prefix" will match all paths that start with "prefix".
 paths:
+  rpi:
+    source: rtsp://raspberrypi.local:8554/cam
+    sourceOnDemand: false
+
   # example:
   # my_camera:
   #   source: rtsp://my_camera

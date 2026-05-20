@@ -45,3 +45,8 @@ class AIMetrics:
 
 # Global singleton — import this in VisionEngine and consumers
 ai_metrics = AIMetrics()
+
+# Shared configuration dictionary
+engine_config = {
+    "frame_step": 10,
+}

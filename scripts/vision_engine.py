@@ -13,7 +13,7 @@ from ultralytics import YOLO
 import threading
 
 from recognition.models import AccessPermit, BlackList, Camera, DetectedPlate, Vehicle, ParkingSession
-from recognition.ai_metrics import ai_metrics
+from recognition.ai_metrics import ai_metrics, engine_config
 
 
 class VideoCaptureThread:
@@ -364,7 +364,9 @@ class VisionEngine:
                     print(f"[DEBUG] Досягнуто ліміт кадрів ({frame_id}). Фіналізація...")
                     break
 
-                if frame_id % self.frame_step == 0:
+                # Dynamically read current frame_step to support changes "on the fly"
+                current_step = engine_config.get("frame_step", 10)
+                if frame_id % current_step == 0:
                     # Копіюємо кадр, щоб потік продовжував оновлюватись
                     process_frame = frame.copy()
 
@@ -452,11 +454,14 @@ class VisionEngine:
 
         # Перемикання лічильника парковки
         try:
-            session = ParkingSession.objects.filter(plate_text=plate_text).first()
+            clean_plate = plate_text.strip().upper()
+            session = ParkingSession.objects.filter(plate_text__iexact=clean_plate).first()
             if session:
-                session.delete() # Виїзд
+                session.delete()  # Виїзд — звільняємо місце
+                print(f"[PARKING] Виїзд: {clean_plate}")
             else:
-                ParkingSession.objects.create(plate_text=plate_text) # В'їзд
+                ParkingSession.objects.create(plate_text=clean_plate)  # В'їзд — займаємо місце
+                print(f"[PARKING] В'їзд: {clean_plate}")
         except Exception as e:
             print(f"[ERROR] Помилка лічильника парковки: {e}")
 
@@ -502,11 +507,14 @@ class VisionEngine:
 
                 # Перемикання лічильника парковки
                 try:
-                    session = ParkingSession.objects.filter(plate_text=top_plate).first()
+                    clean_plate = top_plate.strip().upper()
+                    session = ParkingSession.objects.filter(plate_text__iexact=clean_plate).first()
                     if session:
                         session.delete()
+                        print(f"[PARKING] Виїзд: {clean_plate}")
                     else:
-                        ParkingSession.objects.create(plate_text=top_plate)
+                        ParkingSession.objects.create(plate_text=clean_plate)
+                        print(f"[PARKING] В'їзд: {clean_plate}")
                 except Exception as e:
                     print(f"[ERROR] Помилка лічильника парковки: {e}")
 
