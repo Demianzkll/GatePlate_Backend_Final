@@ -61,6 +61,8 @@ class WayForPayService:
         "1_year": {"price": 1499, "days": 365, "label": "GatePlate API 1 year"},
     }
 
+    GUEST_PASS_PRICE = 50  # Ціна гостьового пропуску в UAH
+
     @staticmethod
     def generate_signature(params_list):
         """Генерує HMAC_MD5 підпис для WayForPay"""
@@ -140,6 +142,78 @@ class WayForPayCreatePaymentAPIView(APIView):
         return Response(payment_data)
 
 
+class WayForPayCreateGuestPassAPIView(APIView):
+    """Створює платіж за гостьовий пропуск і повертає дані для WayForPay Widget"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        plate = request.data.get("plate", "").upper().strip()
+        if not plate:
+            return Response(
+                {"error": "Номер авто не вказано"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Перевірка чи авто вже зареєстроване
+        if Vehicle.objects.filter(plate_text=plate).exists():
+            return Response(
+                {"error": "Це авто вже зареєстроване в системі"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        amount = WayForPayService.GUEST_PASS_PRICE
+        product_name = f"GatePlate Guest Pass ({plate})"
+        currency = "UAH"
+
+        order_ref = f"GP_GUEST_{request.user.id}_{plate}_{int(time.time())}"
+        order_date = int(time.time())
+
+        PaymentTransaction.objects.create(
+            user=request.user,
+            transaction_type="guest_pass",
+            plate_text=plate,
+            plan="",
+            order_reference=order_ref,
+            amount=amount,
+            currency=currency,
+            status="pending",
+        )
+
+        signature = WayForPayService.generate_signature([
+            settings.WAYFORPAY_ACCOUNT,
+            settings.WAYFORPAY_DOMAIN,
+            order_ref,
+            str(order_date),
+            str(amount),
+            currency,
+            product_name,
+            "1",
+            str(amount),
+        ])
+
+        payment_data = {
+            "merchantAccount": settings.WAYFORPAY_ACCOUNT,
+            "merchantDomainName": settings.WAYFORPAY_DOMAIN,
+            "merchantSignature": signature,
+            "orderReference": order_ref,
+            "orderDate": order_date,
+            "amount": amount,
+            "currency": currency,
+            "productName": [product_name],
+            "productCount": [1],
+            "productPrice": [amount],
+            "serviceUrl": os.environ.get(
+                "WFP_SERVICE_URL",
+                "http://localhost:8000/api/payment/webhook/",
+            ),
+            "returnUrl": os.environ.get(
+                "WFP_RETURN_URL",
+                "http://localhost:3000/guest-registration",
+            ),
+        }
+
+        return Response(payment_data)
+
+
 class WayForPayWebhookAPIView(APIView):
     """Callback від WayForPay після оплати"""
     permission_classes = [AllowAny]
@@ -181,18 +255,29 @@ class WayForPayWebhookAPIView(APIView):
 
         if transaction_status == "Approved":
             try:
-                plan_info = WayForPayService.PLAN_CONFIG.get(transaction.plan, WayForPayService.PLAN_CONFIG["1_month"])
-
-                # Створюємо API Key
-                api_key = APIKey.objects.create(
-                    user=transaction.user,
-                    plan=transaction.plan,
-                    expires_at=timezone.now() + timedelta(days=plan_info["days"]),
-                    is_active=True,
-                )
+                if transaction.transaction_type == "guest_pass":
+                    # Створюємо запис Vehicle для гостьового пропуску
+                    Vehicle.objects.get_or_create(
+                        plate_text=transaction.plate_text,
+                        defaults={
+                            "created_by": transaction.user,
+                            "brand_model": "Гість (Оплачений пропуск)",
+                            "owner_first_name": transaction.user.first_name or transaction.user.username,
+                            "owner_last_name": transaction.user.last_name or "",
+                        },
+                    )
+                else:
+                    # Створюємо API Key (існуюча логіка)
+                    plan_info = WayForPayService.PLAN_CONFIG.get(transaction.plan, WayForPayService.PLAN_CONFIG["1_month"])
+                    api_key = APIKey.objects.create(
+                        user=transaction.user,
+                        plan=transaction.plan,
+                        expires_at=timezone.now() + timedelta(days=plan_info["days"]),
+                        is_active=True,
+                    )
+                    transaction.api_key = api_key
 
                 # Оновлюємо транзакцію
-                transaction.api_key = api_key
                 transaction.status = "approved"
                 transaction.save()
 
@@ -238,6 +323,41 @@ class PaymentStatusAPIView(APIView):
             )
         except PaymentTransaction.DoesNotExist:
             return Response({"error": "Not found"}, status=404)
+
+        # --- AUTO-APPROVE для тестового режиму (test_merch_n1 + DEBUG) ---
+        if (
+            transaction.status == "pending"
+            and settings.DEBUG
+            and settings.WAYFORPAY_ACCOUNT == "test_merch_n1"
+        ):
+            try:
+                if transaction.transaction_type == "guest_pass":
+                    Vehicle.objects.get_or_create(
+                        plate_text=transaction.plate_text,
+                        defaults={
+                            "created_by": transaction.user,
+                            "brand_model": "Гість (Оплачений пропуск)",
+                            "owner_first_name": transaction.user.first_name or transaction.user.username,
+                            "owner_last_name": transaction.user.last_name or "",
+                        },
+                    )
+                else:
+                    plan_info = WayForPayService.PLAN_CONFIG.get(
+                        transaction.plan, WayForPayService.PLAN_CONFIG["1_month"]
+                    )
+                    api_key = APIKey.objects.create(
+                        user=transaction.user,
+                        plan=transaction.plan,
+                        expires_at=timezone.now() + timedelta(days=plan_info["days"]),
+                        is_active=True,
+                    )
+                    transaction.api_key = api_key
+
+                transaction.status = "approved"
+                transaction.save()
+                print(f"[AUTO-APPROVE] Тестовий платіж схвалено: {order_ref}")
+            except Exception as e:
+                print(f"[AUTO-APPROVE ERROR] {e}")
 
         result = {
             "status": transaction.status,
@@ -419,6 +539,18 @@ class PlateConfirmView(APIView):
         temp_best_frames.pop(video_name, None)
 
         return Response({"status": "saved"})
+
+
+class PlateRejectView(APIView):
+    permission_classes = [IsStaffUser]
+
+    def post(self, request):
+        data = request.data
+        video_name = data.get("video_name")
+        if video_name:
+            live_previews.pop(video_name, None)
+            temp_best_frames.pop(video_name, None)
+        return Response({"status": "rejected"})
 
 
 # --- EMPLOYEE CRUD VIEWS ---

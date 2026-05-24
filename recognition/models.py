@@ -208,14 +208,27 @@ class PaymentTransaction(models.Model):
         ("1_year", "1 рік"),
     ]
 
+    TYPE_CHOICES = [
+        ("api_key", "API-ключ"),
+        ("guest_pass", "Гостьовий пропуск"),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
     api_key = models.ForeignKey(
         'APIKey', on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name="Виданий API-ключ"
     )
+    transaction_type = models.CharField(
+        max_length=20, choices=TYPE_CHOICES, default="api_key",
+        verbose_name="Тип транзакції"
+    )
     plan = models.CharField(
         max_length=20, choices=PLAN_CHOICES, default="1_month",
-        verbose_name="Тарифний план"
+        verbose_name="Тарифний план", blank=True
+    )
+    plate_text = models.CharField(
+        max_length=20, blank=True, default="",
+        verbose_name="Номер авто (для гостьового пропуску)"
     )
     order_reference = models.CharField(max_length=100, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)

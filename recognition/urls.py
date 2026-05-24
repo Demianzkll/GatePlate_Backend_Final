@@ -16,9 +16,11 @@ from .views import (
     PaymentStatusAPIView,
     PhotoRecognitionAPIView,
     PlateConfirmView,
+    PlateRejectView,
     VehicleViewSet,
     WayForPayWebhookAPIView,
     WayForPayCreatePaymentAPIView,
+    WayForPayCreateGuestPassAPIView,
     ParkingStatusView,
 )
 
@@ -30,6 +32,7 @@ urlpatterns = [
     path("start-analysis/", AnalysisStartView.as_view(), name="start-analysis"),
     path("live-update/", LiveUpdateView.as_view(), name="live-update"),
     path("confirm-plate/", PlateConfirmView.as_view(), name="confirm-plate"),
+    path("reject-plate/", PlateRejectView.as_view(), name="reject-plate"),
     path("employees/", EmployeeListCreateView.as_view(), name="employees-list"),
     path("employees/<int:pk>/", EmployeeDetailView.as_view(), name="employee-detail"),
     path("departments/", DepartmentListView.as_view(), name="department-list"),
@@ -42,6 +45,7 @@ urlpatterns = [
     path("issue-api-key/", IssueAPIKeyView.as_view(), name="issue-api-key"),
     path("guests/", GuestVehicleListView.as_view(), name="guest-list"),
     path("payment/create/", WayForPayCreatePaymentAPIView.as_view(), name="wayforpay-create"),
+    path("payment/create-guest-pass/", WayForPayCreateGuestPassAPIView.as_view(), name="wayforpay-guest-pass"),
     path("payment/webhook/", WayForPayWebhookAPIView.as_view(), name="wayforpay-webhook"),
     path("payment/status/", PaymentStatusAPIView.as_view(), name="payment-status"),
     path("parking-status/", ParkingStatusView.as_view(), name="parking-status"),
