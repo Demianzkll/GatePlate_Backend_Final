@@ -185,9 +185,9 @@ DATABASES = {
         "PORT": os.environ.get("DB_PORT", "3306"),
         "OPTIONS": {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES', names 'utf8mb4'",
-            # 'ssl': {
-            #     'ca': os.path.join(BASE_DIR, 'ca.pem'),
-            # },
+            'ssl': {
+                'ca': os.path.join(BASE_DIR, 'ca.pem'),
+            },
         },
         'CONN_MAX_AGE': 600,
     }

@@ -227,7 +227,7 @@ class VisionEngine:
         self._stop_requested = True
         ai_metrics.reset()
 
-    def analyze_single_photo(self, image_file, save_to_archive=True):
+    def analyze_single_photo(self, image_file, save_to_archive=True, user=None):
         """Аналізує фото. Зберігає в Архів тільки якщо save_to_archive=True"""
         file_bytes = np.frombuffer(image_file.read(), np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
@@ -249,18 +249,26 @@ class VisionEngine:
             }
 
         vehicle = Vehicle.objects.filter(plate_text=plate_text).first()
-        is_known = bool(vehicle)
+        is_known = False
         owner_name = "Невідомий"
         owner_phone = "---"
 
         if vehicle:
             if vehicle.employee:
+                is_known = True
                 owner_name = (
                     f"{vehicle.employee.first_name} {vehicle.employee.last_name}"
                 )
                 owner_phone = vehicle.employee.phone
             else:
-                owner_name = "Службове авто (без водія)"
+                # Гостьове авто: відоме лише якщо користувач є власником або персоналом
+                is_staff = user and user.groups.filter(name__in=["Administrators", "Operators"]).exists()
+                if is_staff or (user and vehicle.created_by == user):
+                    is_known = True
+                    owner_name = f"{vehicle.owner_first_name} {vehicle.owner_last_name}"
+                else:
+                    is_known = False
+                    owner_name = "Невідомий"
         if save_to_archive:
             try:
                 camera_obj, _ = Camera.objects.get_or_create(

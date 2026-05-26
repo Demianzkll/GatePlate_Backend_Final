@@ -9,7 +9,7 @@ db.sqlite3
 # --- Специфічне для GatePlate ---
 videos/
 runs/
-*.pt
+# *.pt  # Дозволено для HF деплою (YOLO модель)
 
 # --- MediaMTX & FFmpeg ---
 mediamtx/mediamtx.exe
@@ -18,7 +18,7 @@ mediamtx/mediamtx.log
 *.log
 
 # --- Сертифікати та Секрети ---
-*.pem
+# *.pem  # Дозволено для HF деплою (Aiven CA сертифікат)
 *.crt
 *.key
 

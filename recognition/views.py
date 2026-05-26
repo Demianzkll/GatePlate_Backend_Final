@@ -740,7 +740,7 @@ class PhotoRecognitionAPIView(APIView):
                 )
 
         engine = VisionEngine()
-        analysis = engine.analyze_single_photo(image_file, save_to_archive=is_staff)
+        analysis = engine.analyze_single_photo(image_file, save_to_archive=is_staff, user=user)
 
         # 3. ЛОГІКА СПИСАННЯ
         if not is_staff:
